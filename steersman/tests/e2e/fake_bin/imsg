@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+import json
+import sys
+
+
+def main() -> int:
+    args = [arg for arg in sys.argv[1:] if arg != "--json"]
+    if not args:
+        return 2
+
+    if args[0] == "chats":
+        print(
+            json.dumps(
+                {
+                    "id": 1,
+                    "name": "Alice",
+                    "identifier": "+14155550100",
+                    "service": "iMessage",
+                    "last_message_at": "2026-01-01T00:00:00Z",
+                }
+            )
+        )
+        print(
+            json.dumps(
+                {
+                    "id": 2,
+                    "name": "Bob",
+                    "identifier": "+14155550101",
+                    "service": "SMS",
+                    "last_message_at": "2026-01-01T00:00:00Z",
+                }
+            )
+        )
+        return 0
+
+    if args[0] == "send":
+        print(json.dumps({"status": "sent"}))
+        return 0
+
+    print("unsupported fake imsg call", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

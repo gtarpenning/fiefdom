@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def load_state(path: Path) -> dict:
+    if not path.exists():
+        return {"reminders": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state), encoding="utf-8")
+
+
+def main() -> int:
+    args = [arg for arg in sys.argv[1:] if arg != "--json"]
+    state_dir = Path(os.environ.get("FAKE_STEERSMAN_STATE_DIR", "/tmp"))
+    state_path = state_dir / "fake_remindctl_state.json"
+    state = load_state(state_path)
+
+    if args == ["list"]:
+        print(json.dumps([{"id": "list-1", "title": "steerman", "reminderCount": 0, "overdueCount": 0}]))
+        return 0
+
+    if len(args) >= 2 and args[0] == "list":
+        list_name = args[1]
+        if "--create" in args:
+            print(json.dumps([{"id": "list-1", "title": list_name, "reminderCount": 0, "overdueCount": 0}]))
+            return 0
+        items = [item for item in state["reminders"] if item["listName"] == list_name]
+        print(json.dumps(items))
+        return 0
+
+    if args and args[0] == "add":
+        def opt(name: str, default: str = "") -> str:
+            if name not in args:
+                return default
+            idx = args.index(name)
+            if idx + 1 >= len(args):
+                return default
+            return args[idx + 1]
+
+        title = opt("--title")
+        list_name = opt("--list", "steerman")
+        notes = opt("--notes") or None
+        due = opt("--due") or None
+        priority = opt("--priority", "none")
+        rid = f"fake-rem-{len(state['reminders']) + 1}"
+        item = {
+            "id": rid,
+            "isCompleted": False,
+            "listID": "list-1",
+            "listName": list_name,
+            "priority": priority,
+            "title": title,
+            "notes": notes,
+            "dueDate": due,
+        }
+        state["reminders"].append(item)
+        save_state(state_path, state)
+        print(json.dumps(item))
+        return 0
+
+    print("unsupported fake remindctl call", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -136,3 +136,36 @@ steersman/
 - `app.py` is the only entry that attaches `principal` and `ctx`.
 - `skills/*` may import `models`, `policy.require/check`, and `audit.emit` via `ctx`—but must not mint tokens or bypass auth.
 - Kernel code should not import skill modules except through a registry/discovery function.
+
+## Current MVP
+
+- Local-only FastAPI server with auth, policy checks, audit logging, and idempotency for mutating actions.
+- Skills currently wired:
+- `reminders` via `remindctl`.
+- `imessage` via `imsg`.
+- Both skills run through the same `/v1/*` security and response envelope layer.
+
+## Launchd (MVP)
+
+Install and start as a LaunchAgent:
+
+```bash
+python -m steersman start --launchd --host 127.0.0.1 --port 8765
+```
+
+Check LaunchAgent + health status:
+
+```bash
+python -m steersman status --launchd --host 127.0.0.1 --port 8765
+```
+
+Stop the LaunchAgent:
+
+```bash
+python -m steersman stop --launchd
+```
+
+## MVP gut check
+
+Run `./scripts/gut_check.sh` for a quick end-to-end sanity check.
+See `docs/gut-check.md` for details.
