@@ -36,9 +36,10 @@ This is the simplest path that still supports growth.
    - Slack user token (single workspace + DMs/channels you allow).
    - Twilio SMS + voice.
    - WhatsApp via Twilio or Meta Cloud API (pick one first; Twilio is simpler if already using it).
-7. Local action bridge:
-   - Run a separate local FastAPI process that exposes trusted endpoints for device-native actions (`imessage`, `notes`, future local automations).
-   - Cupbearer calls this bridge over authenticated localhost/secure tunnel, with explicit action allowlists and audit logging.
+7. External action service integration:
+   - Device-native actions (`imessage`, `notes`, future local automations) are hosted by an external service (`../steersman`).
+   - Cupbearer only calls approved REST endpoints with auth, timeout, and idempotency guarantees.
+   - Cupbearer does not own/process-host this runtime.
 8. Deployment:
    - Single Fly app, single volume, health checks, nightly DB backup to object storage.
 
@@ -86,9 +87,13 @@ This is the simplest path that still supports growth.
 5. Rollback:
    - one command to revert active skill version.
 6. Remote skills/actions:
-   - support HTTP-executed skills through the local FastAPI action bridge (`imessage`, `notes`, etc.)
+   - support HTTP-executed actions through external REST endpoints (served by `../steersman`)
    - each remote action endpoint must declare auth, timeout, input schema, and idempotency behavior
    - map remote actions into the same `skill_runs` audit trail as local skills
+7. Invocation model (decision point):
+   - default path: wrap REST calls as skills so all execution goes through one permissioned skill runner
+   - optional path: expose some REST calls as first-class tools if lower latency/direct routing is needed
+   - pick one default for v1 and keep the other as a later optimization
 
 ## 7) North Star Workflow (NYC Trip)
 Build this as the first end-to-end scenario and treat it as the acceptance test.
@@ -112,8 +117,8 @@ Build this as the first end-to-end scenario and treat it as the acceptance test.
    - `mem0` integration (`search` + `add` flow), memory citations, local metadata logging.
 5. Skills v1 (Week 5-6)
    - skill spec, versioning, runner, permission gates.
-6. Remote Action Bridge (Week 6)
-   - local FastAPI process for `imessage` + `notes`, auth handshake, endpoint contracts, retries/timeouts.
+6. External Actions Integration (Week 6)
+   - integrate Cupbearer with `../steersman` REST endpoints for `imessage` + `notes`, including auth handshake, endpoint contracts, retries/timeouts.
 7. North Star Implementation (Week 6-7)
    - NYC workflow skill + multi-contact coordination + voice briefing.
 8. Hardening (Week 7-8)
@@ -141,6 +146,7 @@ Build this as the first end-to-end scenario and treat it as the acceptance test.
    - Twilio WhatsApp or Meta WhatsApp Cloud (choose one now).
 2. Create schema + migrations from sections 3/6 (do not build custom memory tables beyond references/observability).
 3. Implement `mem0`-backed `chat_with_memories(...)` flow and wire it into the orchestrator.
-4. Stand up local FastAPI action bridge with first endpoints: `imessage.send`, `notes.create`.
-5. Implement event ingestion + durable jobs loop first.
-6. Add the NYC workflow as the first real integration test.
+4. Integrate with `../steersman` endpoints for first remote actions: `imessage.send`, `notes.create`.
+5. Choose v1 invocation default: REST-as-skill wrapper (recommended) vs direct tool adapter.
+6. Implement event ingestion + durable jobs loop first.
+7. Add the NYC workflow as the first real integration test.
