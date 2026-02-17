@@ -167,5 +167,10 @@ python -m steersman stop --launchd
 
 ## MVP gut check
 
-Run `./scripts/gut_check.sh` for a quick end-to-end sanity check.
+Run `./scripts/gut_check.sh --target local` for a quick local end-to-end sanity check.
+Run `./scripts/gut_check.sh --target remote` to check an already-running server (set `STEERSMAN_GUTCHECK_BASE_URL`).
 See `docs/gut-check.md` for details.
+
+Optional skill hooks for manual checks:
+- set `STEERSMAN_GUTCHECK_REMINDER_TITLE` to create a reminder (default list)
+- set `STEERSMAN_GUTCHECK_IMESSAGE_TO` and `STEERSMAN_GUTCHECK_IMESSAGE_TEXT` to send a test iMessage

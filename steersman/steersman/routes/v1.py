@@ -36,7 +36,7 @@ class IMessageSend(BaseModel):
     service: str = Field(default="auto")
 
 
-DEFAULT_REMINDERS_LIST = "steerman"
+DEFAULT_REMINDERS_LIST = "steersman"
 
 
 def create_v1_router() -> APIRouter:

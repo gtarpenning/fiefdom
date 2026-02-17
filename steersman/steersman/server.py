@@ -1,4 +1,5 @@
 import ipaddress
+import logging
 
 import uvicorn
 
@@ -26,6 +27,11 @@ def assert_loopback_host(host: str) -> None:
 def run(settings: Settings | None = None) -> None:
     app_settings = settings or Settings()
     assert_loopback_host(app_settings.host)
+
+    logging.basicConfig(
+        level=getattr(logging, app_settings.log_level.upper(), logging.INFO),
+        format="%(levelname)s:     %(name)s - %(message)s",
+    )
 
     uvicorn.run(
         create_app(app_settings),

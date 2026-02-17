@@ -1,3 +1,4 @@
+import logging
 import secrets
 import time
 from typing import Any
@@ -11,6 +12,8 @@ from steersman import policy
 from steersman.config import Settings
 from steersman.errors import AppError
 from steersman.models import ActionEnvelope, ErrorPayload
+
+logger = logging.getLogger("steersman.kernel")
 
 
 def request_id(request: Request) -> str:
@@ -150,6 +153,14 @@ def install_kernel(app: FastAPI) -> None:
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+        logger.warning(
+            "%s %s -> %d [%s] %s",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.kind,
+            exc.message,
+        )
         return JSONResponse(
             status_code=exc.status_code,
             content=error_envelope(
@@ -176,7 +187,13 @@ def install_kernel(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def unhandled_error_handler(request: Request, _: Exception) -> JSONResponse:
+    async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception(
+            "%s %s -> 500 unhandled: %s",
+            request.method,
+            request.url.path,
+            exc,
+        )
         return JSONResponse(
             status_code=500,
             content=error_envelope(

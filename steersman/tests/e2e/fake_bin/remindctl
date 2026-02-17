@@ -23,7 +23,7 @@ def main() -> int:
     state = load_state(state_path)
 
     if args == ["list"]:
-        print(json.dumps([{"id": "list-1", "title": "steerman", "reminderCount": 0, "overdueCount": 0}]))
+        print(json.dumps([{"id": "list-1", "title": "steersman", "reminderCount": 0, "overdueCount": 0}]))
         return 0
 
     if len(args) >= 2 and args[0] == "list":
@@ -45,7 +45,7 @@ def main() -> int:
             return args[idx + 1]
 
         title = opt("--title")
-        list_name = opt("--list", "steerman")
+        list_name = opt("--list", "steersman")
         notes = opt("--notes") or None
         due = opt("--due") or None
         priority = opt("--priority", "none")

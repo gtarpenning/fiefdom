@@ -1,9 +1,14 @@
 import json
+import logging
+import re
 import shutil
 import subprocess
+from datetime import datetime, timedelta
 from typing import Any
 
 from steersman.errors import AppError
+
+logger = logging.getLogger("steersman.skills.reminders")
 
 
 PRIORITY_TO_REMINDCTL = {
@@ -25,6 +30,32 @@ REMINDCTL_TO_PRIORITY = {
     "medium": 5,
     "low": 9,
 }
+
+
+_RELATIVE_RE = re.compile(
+    r"^in\s+(\d+)\s+(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks)$",
+    re.IGNORECASE,
+)
+
+_UNIT_MINUTES = {
+    "minute": 1, "minutes": 1, "min": 1, "mins": 1,
+    "hour": 60, "hours": 60, "hr": 60, "hrs": 60,
+    "day": 1440, "days": 1440,
+    "week": 10080, "weeks": 10080,
+}
+
+
+def _normalize_due(due: str) -> str:
+    """Convert natural-language relative times to 'YYYY-MM-DD HH:MM' for remindctl."""
+    m = _RELATIVE_RE.match(due.strip())
+    if m:
+        amount = int(m.group(1))
+        unit = m.group(2).lower()
+        dt = datetime.now() + timedelta(minutes=amount * _UNIT_MINUTES[unit])
+        result = dt.strftime("%Y-%m-%d %H:%M")
+        logger.info("normalized due %r -> %r", due, result)
+        return result
+    return due
 
 
 def _normalize_item(item: dict[str, Any]) -> dict[str, Any]:
@@ -69,26 +100,31 @@ def _extract_json(stdout: str) -> Any:
 def _run_remindctl(args: list[str]) -> Any:
     cmd = "remindctl"
     if shutil.which(cmd) is None:
+        logger.error("remindctl binary not found on PATH")
         raise AppError(
             kind="dependency_unavailable",
             message="remindctl binary not found on PATH. Install with: brew install steipete/tap/remindctl",
             status_code=503,
             retryable=False,
         )
+    full_args = [cmd, *args, "--json"]
+    logger.info("running: %s", " ".join(full_args))
     proc = subprocess.run(
-        [cmd, *args, "--json"],
+        full_args,
         capture_output=True,
         text=True,
         timeout=20,
     )
     if proc.returncode != 0:
         output = f"{proc.stdout}\n{proc.stderr}".strip() or "remindctl command failed"
+        logger.error("remindctl exit %d: %s", proc.returncode, output)
         raise AppError(
             kind="dependency_unavailable",
             message=output,
             status_code=503,
             retryable=True,
         )
+    logger.debug("remindctl stdout: %s", proc.stdout[:500])
     return _extract_json(proc.stdout)
 
 
@@ -143,7 +179,7 @@ def create_remindctl_reminder(
     if notes:
         args.extend(["--notes", notes])
     if due:
-        args.extend(["--due", due])
+        args.extend(["--due", _normalize_due(due)])
     priority_value = PRIORITY_TO_REMINDCTL.get(priority, "none")
     if priority_value != "none":
         args.extend(["--priority", priority_value])

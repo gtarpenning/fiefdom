@@ -192,6 +192,111 @@ def test_v1_skill_catalog_and_manifest_mapped_capabilities_flow_e2e() -> None:
         )
 
 
+def test_gut_check_script_optional_skill_actions_e2e() -> None:
+    port = free_port()
+    fake_bin = os.path.join(os.path.dirname(__file__), "fake_bin")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        env = {
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ.get('PATH', '')}",
+            "FAKE_STEERSMAN_STATE_DIR": temp_dir,
+            "STEERSMAN_AUTH_TOKEN": "test-token",
+            "STEERSMAN_HOST": "127.0.0.1",
+            "STEERSMAN_PORT": str(port),
+            "STEERSMAN_GUTCHECK_IMESSAGE_TO": "+14155550100",
+        }
+        result = subprocess.run(
+            ["bash", "scripts/gut_check.sh"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+
+    assert result.returncode == 0
+    assert "[POST /v1/reminders] status=201 expected=201" in result.stdout
+    assert "[POST /v1/imessage/send] status=201 expected=201" in result.stdout
+
+
+def test_gut_check_script_fails_without_required_skill_binaries_e2e() -> None:
+    port = free_port()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        python_path = os.path.join(temp_dir, "python")
+        with open(python_path, "w", encoding="utf-8") as handle:
+            handle.write(f"#!/usr/bin/env bash\nexec {sys.executable} \"$@\"\n")
+        os.chmod(python_path, 0o755)
+
+        env = {
+            **os.environ,
+            "PATH": f"{temp_dir}:/usr/bin:/bin",
+            "STEERSMAN_AUTH_TOKEN": "test-token",
+            "STEERSMAN_HOST": "127.0.0.1",
+            "STEERSMAN_PORT": str(port),
+        }
+        result = subprocess.run(
+            ["bash", "scripts/gut_check.sh"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+
+    assert result.returncode != 0
+    assert "[GET /v1/reminders] status=503 expected=200" in result.stdout
+
+
+def test_gut_check_script_remote_target_e2e() -> None:
+    env = {"STEERSMAN_AUTH_TOKEN": "test-token"}
+    with run_server(env=env) as base_url:
+        result = subprocess.run(
+            [
+                "bash",
+                "scripts/gut_check.sh",
+                "--target",
+                "remote",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={
+                **os.environ,
+                "STEERSMAN_AUTH_TOKEN": "test-token",
+                "STEERSMAN_GUTCHECK_BASE_URL": base_url,
+            },
+        )
+
+    assert result.returncode == 0
+    assert f"Running Steersman gut check against {base_url}" in result.stdout
+
+
+def test_gut_check_script_local_target_with_fake_bins_e2e() -> None:
+    port = free_port()
+    fake_bin = os.path.join(os.path.dirname(__file__), "fake_bin")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        python_path = os.path.join(temp_dir, "python")
+        with open(python_path, "w", encoding="utf-8") as handle:
+            handle.write(f"#!/usr/bin/env bash\nexec {sys.executable} \"$@\"\n")
+        os.chmod(python_path, 0o755)
+
+        env = {
+            **os.environ,
+            "PATH": f"{fake_bin}:{temp_dir}:/usr/bin:/bin",
+            "STEERSMAN_AUTH_TOKEN": "test-token",
+            "STEERSMAN_HOST": "127.0.0.1",
+            "STEERSMAN_PORT": str(port),
+        }
+        result = subprocess.run(
+            ["bash", "scripts/gut_check.sh", "--target", "local"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+
+    assert result.returncode == 0
+    assert "[GET /v1/reminders] status=200 expected=200" in result.stdout
+
+
 def test_cli_start_status_and_doctor_flow_e2e() -> None:
     port = free_port()
     env = {"STEERSMAN_AUTH_TOKEN": "test-token"}
@@ -562,7 +667,7 @@ def test_v1_reminders_remindctl_backend_flow_e2e() -> None:
             body={
                 "title": title,
                 "notes": "created by steersman native e2e",
-                "list": "steerman",
+                "list": "steersman",
                 "priority": 5,
             },
             timeout_s=20.0,
@@ -570,10 +675,10 @@ def test_v1_reminders_remindctl_backend_flow_e2e() -> None:
         assert status == 201
         item = created["result"]["item"]
         assert item["title"] == title
-        assert item["list"] == "steerman"
+        assert item["list"] == "steersman"
 
         status, listed = request_json(
-            f"{base_url}/v1/reminders?list=steerman&status=open",
+            f"{base_url}/v1/reminders?list=steersman&status=open",
             headers={"X-Steersman-Token": "test-token"},
             timeout_s=20.0,
         )
@@ -612,7 +717,7 @@ def test_v1_reminders_remindctl_flagged_rejected_e2e() -> None:
             },
             body={
                 "title": "test flagged not yet supported",
-                "list": "steerman",
+                "list": "steersman",
                 "flagged": True,
             },
             timeout_s=20.0,
@@ -632,14 +737,14 @@ def test_v1_reminders_remindctl_does_not_recreate_existing_list_e2e() -> None:
                 "set -euo pipefail\n"
                 "echo \"$*\" >> \"$FAKE_REMINDCTL_LOG\"\n"
                 "if [[ \"$1\" == \"list\" && \"$2\" == \"--json\" ]]; then\n"
-                "  echo '[{\"id\":\"list-1\",\"title\":\"steerman\",\"reminderCount\":0,\"overdueCount\":0}]'\n"
+                "  echo '[{\"id\":\"list-1\",\"title\":\"steersman\",\"reminderCount\":0,\"overdueCount\":0}]'\n"
                 "  exit 0\n"
                 "fi\n"
                 "if [[ \"$1\" == \"add\" ]]; then\n"
-                "  echo '{\"id\":\"rem-1\",\"isCompleted\":false,\"listID\":\"list-1\",\"listName\":\"steerman\",\"priority\":\"medium\",\"title\":\"test title\",\"notes\":null,\"dueDate\":null}'\n"
+                "  echo '{\"id\":\"rem-1\",\"isCompleted\":false,\"listID\":\"list-1\",\"listName\":\"steersman\",\"priority\":\"medium\",\"title\":\"test title\",\"notes\":null,\"dueDate\":null}'\n"
                 "  exit 0\n"
                 "fi\n"
-                "if [[ \"$1\" == \"list\" && \"$2\" == \"steerman\" && \"$3\" == \"--create\" ]]; then\n"
+                "if [[ \"$1\" == \"list\" && \"$2\" == \"steersman\" && \"$3\" == \"--create\" ]]; then\n"
                 "  echo 'unexpected create call' 1>&2\n"
                 "  exit 55\n"
                 "fi\n"
@@ -663,7 +768,7 @@ def test_v1_reminders_remindctl_does_not_recreate_existing_list_e2e() -> None:
                 },
                 body={
                     "title": "test title",
-                    "list": "steerman",
+                    "list": "steersman",
                     "priority": 5,
                 },
             )
@@ -674,7 +779,7 @@ def test_v1_reminders_remindctl_does_not_recreate_existing_list_e2e() -> None:
             calls = [line.strip() for line in handle if line.strip()]
         assert any(call == "list --json" for call in calls)
         assert any(call.startswith("add ") for call in calls)
-        assert not any(call.startswith("list steerman --create") for call in calls)
+        assert not any(call.startswith("list steersman --create") for call in calls)
 
 
 def test_v1_imessage_read_send_flow_e2e() -> None:
